@@ -1,23 +1,23 @@
 # IPA-Discord-notifier
 
-Fetches IPA (Information-technology Promotion Agency, Japan) RSS feeds and posts new items to a Discord channel via Webhook.
+IPA（情報処理推進機構）のRSSフィードを取得し、新着をDiscordチャンネルにWebhookで投稿します。
 
-## What it does
-- Polls official IPA RSS feeds
-- Deduplicates by link/id (persisted in `sent.json`)
-- Posts to Discord using an Incoming Webhook URL (stored in GitHub Actions Secrets)
+## 概要
+- IPA公式のRSSフィードを定期取得
+- リンク／IDで重複判定し、`sent.json` に永続化
+- GitHub ActionsのSecretに保存したDiscord Incoming Webhook URLで投稿
 
-## Setup (GitHub Actions)
-1. Repository Settings → Secrets and variables → Actions
-2. Add a repository secret:
+## セットアップ（GitHub Actions）
+1. Repository Settings → Secrets and variables → Actions を開く
+2. リポジトリシークレットを追加
    - Name: `DISCORD_WEBHOOK_URL`
-   - Value: your Discord webhook URL
+   - Value: DiscordのWebhook URL
 
-3. Actions tab → enable workflows if prompted.
-4. Run manually:
+3. Actionsタブでワークフローを有効化（促された場合）
+4. 手動実行する場合
    - Actions → "IPA RSS to Discord" → Run workflow
 
-## Notes
-- The workflow runs every 15 minutes (UTC). Edit `.github/workflows/ipa.yml` if you want a different schedule.
-- `sent.json` is committed by the workflow to avoid re-posting the same items.
-- Do not commit your webhook URL; keep it in GitHub Secrets.
+## 補足
+- ワークフローは15分ごと（UTC）に実行されます。スケジュールを変えたい場合は `.github/workflows/ipa.yml` を編集してください。
+- 同じアイテムを再投稿しないよう、`sent.json` をワークフローがコミットします。
+- Webhook URLはコミットせず、必ずGitHub Secretsに保持してください。
