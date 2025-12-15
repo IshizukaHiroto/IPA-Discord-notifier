@@ -23,21 +23,33 @@ MAX_POST_PER_RUN = int(os.environ.get("MAX_POST_PER_RUN", "20"))
 HTTP_TIMEOUT_SEC = int(os.environ.get("HTTP_TIMEOUT_SEC", "20"))
 
 
-def load_sent() -> Set[str]:
+def _dedupe_keep_order(keys: List[str]) -> List[str]:
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for k in keys:
+        if k in seen:
+            continue
+        seen.add(k)
+        ordered.append(k)
+    return ordered
+
+
+def load_sent() -> List[str]:
     if not STATE_PATH.exists():
-        return set()
+        return []
     try:
         data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
         if isinstance(data, list):
-            return set(str(x) for x in data)
+            # Preserve order for trimming logic
+            return _dedupe_keep_order([str(x) for x in data])
     except Exception:
         pass
-    return set()
+    return []
 
 
-def save_sent(sent: Set[str]) -> None:
-    # Keep recent items only to avoid unbounded growth
-    trimmed = list(sent)[-5000:]
+def save_sent(sent_ordered: List[str]) -> None:
+    # Keep recent items only to avoid unbounded growth (ordered to preserve recency)
+    trimmed = _dedupe_keep_order(sent_ordered)[-5000:]
     STATE_PATH.write_text(json.dumps(trimmed, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -104,14 +116,15 @@ def sort_key(e: Dict[str, Any]) -> Any:
 
 
 def main() -> None:
-    sent = load_sent()
+    sent_ordered = load_sent()
+    sent_set = set(sent_ordered)
 
     new_items: List[Tuple[str, Dict[str, Any]]] = []
     for feed_url in FEEDS:
         d = feedparser.parse(feed_url)
         for e in d.entries:
             k = entry_key(e)
-            if k in sent:
+            if k in sent_set:
                 continue
             new_items.append((k, e))
 
@@ -126,10 +139,11 @@ def main() -> None:
         summary = entry_summary(e)
         ts_iso = entry_timestamp_iso(e)
         post_to_discord(title, link, summary, ts_iso)
-        sent.add(k)
+        sent_set.add(k)
+        sent_ordered.append(k)
         posted += 1
 
-    save_sent(sent)
+    save_sent(sent_ordered)
     print(f"posted={posted} total_sent={len(sent)}")
 
 
