@@ -1,8 +1,11 @@
 import json
 import os
+import re
 import time
+from datetime import datetime, timezone
+from html import unescape
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import feedparser
 import requests
@@ -43,11 +46,45 @@ def entry_key(e: Dict[str, Any]) -> str:
     return str(e.get("link") or e.get("id") or (e.get("title", "") + "|" + str(e)))
 
 
-def post_to_discord(content: str) -> None:
+def entry_summary(e: Dict[str, Any]) -> Optional[str]:
+    raw = e.get("summary") or e.get("description")
+    if not raw:
+        return None
+    # Strip HTML-ish tags and collapse whitespace so Discord preview stays tidy.
+    text = unescape(re.sub(r"<[^>]+>", "", str(raw)))
+    text = " ".join(text.split())
+    if not text:
+        return None
+    max_len = 320
+    return (text[:max_len].rstrip() + "…") if len(text) > max_len else text
+
+
+def entry_timestamp_iso(e: Dict[str, Any]) -> Optional[str]:
+    ts = e.get("published_parsed") or e.get("updated_parsed")
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(time.mktime(ts), tz=timezone.utc).isoformat()
+    except Exception:
+        return None
+
+
+def post_to_discord(title: str, link: str, summary: Optional[str], timestamp: Optional[str]) -> None:
+    embed: Dict[str, Any] = {
+        "title": title or "(no title)",
+        "url": link or None,
+        "color": 0x0066CC,  # blue-ish for IPA alerts
+        "footer": {"text": "IPA 重要なセキュリティ情報"},
+    }
+    if summary:
+        embed["description"] = summary
+    if timestamp:
+        embed["timestamp"] = timestamp
+
     payload = {
-        "content": content,
         # Avoid accidental @everyone/@here mentions
         "allowed_mentions": {"parse": []},
+        "embeds": [embed],
     }
 
     r = requests.post(WEBHOOK_URL, json=payload, timeout=HTTP_TIMEOUT_SEC)
@@ -86,8 +123,9 @@ def main() -> None:
             break
         title = e.get("title", "(no title)")
         link = e.get("link", "")
-        msg = f"**{title}**\n{link}"
-        post_to_discord(msg)
+        summary = entry_summary(e)
+        ts_iso = entry_timestamp_iso(e)
+        post_to_discord(title, link, summary, ts_iso)
         sent.add(k)
         posted += 1
 
