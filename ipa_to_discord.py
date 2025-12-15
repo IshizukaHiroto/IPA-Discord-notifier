@@ -130,6 +130,15 @@ def main() -> None:
 
     new_items.sort(key=lambda t: sort_key(t[1]))
 
+    # Initial run seeding: if no history, record current feed as sent without posting.
+    if not sent_ordered and new_items:
+        for k, _ in new_items:
+            sent_set.add(k)
+            sent_ordered.append(k)
+        save_sent(sent_ordered)
+        print(f"seeded_sent={len(sent_ordered)} (initial run, no posts)")
+        return
+
     posted = 0
     for k, e in new_items:
         if posted >= MAX_POST_PER_RUN:
@@ -144,7 +153,7 @@ def main() -> None:
         posted += 1
 
     save_sent(sent_ordered)
-    print(f"posted={posted} total_sent={len(sent)}")
+    print(f"posted={posted} total_sent={len(sent_ordered)}")
 
 
 if __name__ == "__main__":
