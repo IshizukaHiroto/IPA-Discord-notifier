@@ -9,7 +9,7 @@ import requests
 
 # Official IPA RSS feeds
 FEEDS: List[str] = [
-    "https://www.ipa.go.jp/about/newsonly-rss.rdf",  # New information
+    # CHANGED: Only important security alerts (no general news)
     "https://www.ipa.go.jp/security/alert-rss.rdf",  # Important security alerts
 ]
 
@@ -67,7 +67,20 @@ def sort_key(e: Dict[str, Any]) -> Any:
 
 
 def main() -> None:
+    # CHANGED: Detect first run (or empty state) so we can avoid posting historical items
+    state_exists = STATE_PATH.exists()
     sent = load_sent()
+
+    # CHANGED: On first run, initialize sent.json with current feed entries and do NOT post
+    if (not state_exists) or (state_exists and len(sent) == 0):
+        current: Set[str] = set()
+        for feed_url in FEEDS:
+            d = feedparser.parse(feed_url)
+            for e in d.entries:
+                current.add(entry_key(e))
+        save_sent(current)
+        print(f"first_run=True posted=0 total_sent={len(current)}")
+        return
 
     new_items: List[Tuple[str, Dict[str, Any]]] = []
     for feed_url in FEEDS:
